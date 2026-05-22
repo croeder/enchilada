@@ -1,0 +1,8 @@
+server:
+  host: 0.0.0.0
+  port: 8081
+
+data:
+  concept_csv: /Users/croeder/git/CCDA/tislab-clad/CCDA_OMOP_Private/CONCEPT.csv
+  concept_relationship_csv: null   # set path when Athena download is available
+  sqlite_db: ./enchilada.db        # created on first run, reused thereafter

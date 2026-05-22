@@ -55,8 +55,8 @@ def _load_concept(conn: sqlite3.Connection, csv_path: str) -> None:
         "CREATE INDEX IF NOT EXISTS idx_concept ON concept (concept_code, vocabulary_id)"
     )
     conn.execute("INSERT INTO _loaded VALUES ('concept')")
-    conn.execute("PRAGMA synchronous = NORMAL")
     conn.commit()
+    conn.execute("PRAGMA synchronous = NORMAL")
     print("CONCEPT loaded.", flush=True)
 
 
@@ -76,8 +76,8 @@ def _load_concept_relationship(conn: sqlite3.Connection, csv_path: str) -> None:
         "CREATE INDEX IF NOT EXISTS idx_cr ON concept_relationship (concept_id_1, relationship_id)"
     )
     conn.execute("INSERT INTO _loaded VALUES ('concept_relationship')")
-    conn.execute("PRAGMA synchronous = NORMAL")
     conn.commit()
+    conn.execute("PRAGMA synchronous = NORMAL")
     print("CONCEPT_RELATIONSHIP loaded.", flush=True)
 
 
