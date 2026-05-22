@@ -1,0 +1,77 @@
+import os
+from contextlib import asynccontextmanager
+
+import yaml
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
+
+from .db import init_db
+from .translate import translate as do_translate
+
+
+def _load_config() -> dict:
+    path = os.environ.get("ENCHILADA_CONFIG", "config.yaml")
+    with open(path) as f:
+        return yaml.safe_load(f)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    config = _load_config()
+    app.state.conn = init_db(config)
+    yield
+    app.state.conn.close()
+
+
+app = FastAPI(
+    title="enchilada",
+    description="Local FHIR R4 terminology server backed by OMOP vocabularies.",
+    version="0.1.0",
+    lifespan=lifespan,
+)
+
+
+def _extract_params(body: dict) -> dict[str, str]:
+    """Pull named values out of a FHIR Parameters resource."""
+    result = {}
+    for param in body.get("parameter", []):
+        name = param.get("name")
+        for key in ("valueUri", "valueCode", "valueString", "valueUrl"):
+            if key in param:
+                result[name] = param[key]
+                break
+    return result
+
+
+@app.post(
+    "/r4/ConceptMap/$translate",
+    summary="ConceptMap/$translate",
+    description=(
+        "Translate a source code to an OMOP concept ID. "
+        "Accepts a FHIR R4 Parameters resource; returns a Parameters resource."
+    ),
+    response_class=JSONResponse,
+)
+async def conceptmap_translate_post(request: Request):
+    body = await request.json()
+    params = _extract_params(body)
+
+    system = params.get("system")
+    code = params.get("code")
+    targetsystem = params.get("targetsystem")
+
+    missing = [n for n, v in [("system", system), ("code", code), ("targetsystem", targetsystem)] if not v]
+    if missing:
+        raise HTTPException(status_code=400, detail=f"Missing required parameter(s): {', '.join(missing)}")
+
+    return do_translate(request.app.state.conn, system, code, targetsystem)
+
+
+@app.get(
+    "/r4/ConceptMap/$translate",
+    summary="ConceptMap/$translate (GET)",
+    description="Convenience GET form — accepts system, code, targetsystem as query parameters.",
+    response_class=JSONResponse,
+)
+async def conceptmap_translate_get(request: Request, system: str, code: str, targetsystem: str):
+    return do_translate(request.app.state.conn, system, code, targetsystem)

@@ -142,6 +142,14 @@ Two known-good codes confirmed against the local CONCEPT.csv:
 | `http://snomed.info/sct` | `38341003` (hypertensive disorder) | `316866` |
 | `http://snomed.info/sct` | `386661006` (fever) | `437663` |
 
+## Development
+
+FastAPI serves a Swagger UI at `http://localhost:8081/docs` and ReDoc at
+`http://localhost:8081/redoc`. Both are available automatically with no extra configuration.
+
+FHIR operation paths use `$` (e.g. `/r4/ConceptMap/$translate`). The `$` is a valid URL
+character and FastAPI handles it without escaping; it appears literally in the Swagger UI.
+
 ## Matchbox integration
 
 ```yaml
