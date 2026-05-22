@@ -43,6 +43,57 @@ def _extract_params(body: dict) -> dict[str, str]:
     return result
 
 
+@app.get(
+    "/r4/metadata",
+    summary="CapabilityStatement / TerminologyCapabilities",
+    description=(
+        "Returns a CapabilityStatement normally, "
+        "or a TerminologyCapabilities when ?mode=terminology."
+    ),
+    response_class=JSONResponse,
+)
+async def metadata(mode: str | None = None):
+    if mode == "terminology":
+        return {
+            "resourceType": "TerminologyCapabilities",
+            "status": "active",
+            "date": "2025-05-22",
+            "kind": "instance",
+            "codeSystem": [
+                {"uri": "http://snomed.info/sct"},
+                {"uri": "http://hl7.org/fhir/sid/icd-10-cm"},
+                {"uri": "http://hl7.org/fhir/sid/icd-9-cm"},
+                {"uri": "http://www.nlm.nih.gov/research/umls/rxnorm"},
+                {"uri": "http://loinc.org"},
+            ],
+            "translation": {"needsMap": False},
+        }
+    return {
+        "resourceType": "CapabilityStatement",
+        "status": "active",
+        "date": "2025-05-22",
+        "kind": "instance",
+        "fhirVersion": "4.0.1",
+        "format": ["application/fhir+json", "application/json"],
+        "rest": [
+            {
+                "mode": "server",
+                "resource": [
+                    {
+                        "type": "ConceptMap",
+                        "operation": [
+                            {
+                                "name": "translate",
+                                "definition": "http://hl7.org/fhir/OperationDefinition/ConceptMap-translate",
+                            }
+                        ],
+                    }
+                ],
+            }
+        ],
+    }
+
+
 @app.post(
     "/r4/ConceptMap/$translate",
     summary="ConceptMap/$translate",
