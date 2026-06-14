@@ -6,7 +6,7 @@ server:
 
 data:
   concept_csv: /data/CONCEPT.csv
-  concept_relationship_csv: null
+  concept_relationship_csv: /data/CONCEPT_RELATIONSHIP.csv
   concept_extra_csv: /data/concept_extra.tsv
   concept_relationship_extra_csv: /data/concept_relationship_extra.tsv
   vocabulary_extra_csv: /data/vocabulary_extra.tsv
