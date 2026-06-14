@@ -111,6 +111,26 @@ data:
   sqlite_db: ./enchilada.db        # created on first run, reused thereafter
 ```
 
+Optional TLS — required when matchbox runs in Docker because HAPI's OkHttp client forces a
+TLS handshake even for `http://` URLs. Omit these keys for plain-HTTP local development.
+
+```yaml
+server:
+  ssl_certfile: /certs/enchilada.crt
+  ssl_keyfile:  /certs/enchilada.key
+```
+
+Generate a self-signed cert and import it into a Java truststore (see `matchbox_scripts/certs/`):
+
+```bash
+openssl req -x509 -newkey rsa:2048 -keyout enchilada.key -out enchilada.crt \
+  -days 3650 -nodes -subj "/CN=enchilada" \
+  -addext "subjectAltName=DNS:enchilada,DNS:localhost,IP:127.0.0.1"
+
+keytool -importcert -file enchilada.crt -keystore enchilada.jks \
+  -storepass changeit -alias enchilada -noprompt
+```
+
 ## Translation logic
 
 For `ConceptMap/$translate` given `(system, code, targetsystem)`:
@@ -152,12 +172,27 @@ character and FastAPI handles it without escaping; it appears literally in the S
 
 ## Matchbox integration
 
+Local development (plain HTTP):
 ```yaml
 matchbox:
   fhir:
     context:
       txServer: http://localhost:8081/r4
       translateMode: server
+```
+
+Docker (TLS required — HAPI forces TLS even on plain-http URLs):
+```yaml
+matchbox:
+  fhir:
+    context:
+      txServer: https://enchilada:8081/r4
+      translateMode: fallback
+```
+
+Mount the Java truststore into matchbox and set:
+```
+JAVA_TOOL_OPTIONS=-Djavax.net.ssl.trustStore=/certs/enchilada.jks -Djavax.net.ssl.trustStorePassword=changeit
 ```
 
 ## Out of scope

@@ -1,0 +1,13 @@
+server:
+  host: 0.0.0.0
+  port: 8081
+  ssl_certfile: /certs/enchilada.crt
+  ssl_keyfile: /certs/enchilada.key
+
+data:
+  concept_csv: /data/CONCEPT.csv
+  concept_relationship_csv: null
+  concept_extra_csv: /data/concept_extra.tsv
+  concept_relationship_extra_csv: /data/concept_relationship_extra.tsv
+  vocabulary_extra_csv: /data/vocabulary_extra.tsv
+  sqlite_db: /db/enchilada.db

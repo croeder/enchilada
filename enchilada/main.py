@@ -105,13 +105,21 @@ async def metadata(mode: str | None = None):
 )
 async def conceptmap_translate_post(request: Request):
     body = await request.json()
+    import logging; logging.getLogger("enchilada").warning("translate body: %s", body)
     params = _extract_params(body)
 
     system = params.get("system")
     code = params.get("code")
-    targetsystem = params.get("targetsystem")
+    targetsystem = params.get("targetsystem", "https://athena.ohdsi.org")
+    url = params.get("url")
 
-    missing = [n for n, v in [("system", system), ("code", code), ("targetsystem", targetsystem)] if not v]
+    # Bare FHIR code types (e.g. Patient.gender) carry no system URI.
+    # FML maps pass the implicit system URI as the translate() mapUri, which
+    # arrives here as the 'url' parameter.  Fall back to it when 'system' is absent.
+    if not system and url:
+        system = url
+
+    missing = [n for n, v in [("system", system), ("code", code)] if not v]
     if missing:
         raise HTTPException(status_code=400, detail=f"Missing required parameter(s): {', '.join(missing)}")
 

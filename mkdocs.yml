@@ -1,0 +1,19 @@
+site_name: enchilada
+site_description: Local FHIR R4 terminology server backed by OMOP vocabularies
+repo_url: https://github.com/croeder-fhir-to-omop/enchilada
+docs_dir: docs
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.top
+
+nav:
+  - Home: index.md
+  - Configuration: configuration.md
+  - API Reference: api.md
+  - FHIR Conventions & Known Issues: fhir-conventions.md
+
+plugins:
+  - search

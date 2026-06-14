@@ -18,6 +18,11 @@ def conn():
     c = sqlite3.connect(":memory:", check_same_thread=False)
     c.row_factory = sqlite3.Row
     c.executescript("""
+        CREATE TABLE vocabulary (
+            vocabulary_id        TEXT NOT NULL PRIMARY KEY,
+            vocabulary_name      TEXT NOT NULL,
+            vocabulary_reference TEXT
+        );
         CREATE TABLE concept (
             concept_id    INTEGER NOT NULL,
             concept_code  TEXT    NOT NULL,
@@ -133,6 +138,53 @@ def test_http_get_match(client):
 def test_http_missing_param(client):
     resp = client.post("/r4/ConceptMap/$translate", json={"resourceType": "Parameters", "parameter": []})
     assert resp.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# Bare-code tests: system URI passed via 'url' (FML mapUri) instead of 'system'
+# ---------------------------------------------------------------------------
+
+def _bare_code_body(url: str, code: str, targetsystem: str) -> dict:
+    """Parameters body mimicking FML translate(bare_code, 'systemUri', 'code').
+    FML puts the mapUri into the 'url' parameter; no 'system' field is present."""
+    return {
+        "resourceType": "Parameters",
+        "parameter": [
+            {"name": "url",          "valueUri":  url},
+            {"name": "code",         "valueCode": code},
+            {"name": "targetsystem", "valueUri":  targetsystem},
+        ],
+    }
+
+
+def test_WHEN_bare_code_with_known_url_as_system_SHOULD_translate(client):
+    """url parameter used as system fallback when system is absent."""
+    resp = client.post(
+        "/r4/ConceptMap/$translate",
+        json=_bare_code_body("http://snomed.info/sct", "38341003", OMOP),
+    )
+    assert resp.status_code == 200
+    assert resp.json()["parameter"][0]["valueBoolean"] is True
+    assert resp.json()["parameter"][1]["part"][1]["valueCoding"]["code"] == "316866"
+
+
+def test_WHEN_bare_code_without_system_or_url_SHOULD_return_400(client):
+    """No system and no url: enchilada cannot determine vocabulary."""
+    resp = client.post("/r4/ConceptMap/$translate", json={
+        "resourceType": "Parameters",
+        "parameter": [{"name": "code", "valueCode": "male"}],
+    })
+    assert resp.status_code == 400
+
+
+def test_WHEN_bare_code_with_unknown_url_SHOULD_return_no_match(client):
+    """url is present but not a known FHIR system URI: returns result=false."""
+    resp = client.post(
+        "/r4/ConceptMap/$translate",
+        json=_bare_code_body("http://example.com/unknown-system", "whatever", OMOP),
+    )
+    assert resp.status_code == 200
+    assert resp.json()["parameter"][0]["valueBoolean"] is False
 
 
 def test_metadata_capability_statement(client):

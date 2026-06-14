@@ -12,17 +12,23 @@ def _setup_schema(conn: sqlite3.Connection) -> None:
             table_name TEXT PRIMARY KEY
         );
 
+        CREATE TABLE IF NOT EXISTS vocabulary (
+            vocabulary_id        TEXT NOT NULL PRIMARY KEY,
+            vocabulary_name      TEXT NOT NULL,
+            vocabulary_reference TEXT
+        );
+
         CREATE TABLE IF NOT EXISTS concept (
-            concept_id   INTEGER NOT NULL,
-            concept_code TEXT    NOT NULL,
-            vocabulary_id TEXT   NOT NULL,
+            concept_id    INTEGER NOT NULL,
+            concept_code  TEXT    NOT NULL,
+            vocabulary_id TEXT    NOT NULL,
             standard_concept TEXT
         );
 
         CREATE TABLE IF NOT EXISTS concept_relationship (
-            concept_id_1  INTEGER NOT NULL,
-            concept_id_2  INTEGER NOT NULL,
-            relationship_id TEXT  NOT NULL
+            concept_id_1    INTEGER NOT NULL,
+            concept_id_2    INTEGER NOT NULL,
+            relationship_id TEXT    NOT NULL
         );
     """)
 
@@ -81,10 +87,76 @@ def _load_concept_relationship(conn: sqlite3.Connection, csv_path: str) -> None:
     print("CONCEPT_RELATIONSHIP loaded.", flush=True)
 
 
+def _load_concept_extra(conn: sqlite3.Connection, csv_path: str) -> None:
+    """Load supplemental source concepts (IDs > 2B, standard_concept null).
+
+    Local concept IDs are always > 2B (OMOP rule); Athena concept IDs are always < 2B.
+    We clear all > 2B rows before inserting so repeated startups stay idempotent.
+    """
+    print(f"Loading supplemental concepts from {csv_path} ...", flush=True)
+    conn.execute("DELETE FROM concept WHERE concept_id > 2000000000")
+    with open(csv_path, newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f, delimiter=CSV_DELIMITER)
+        conn.executemany(
+            "INSERT INTO concept VALUES (?, ?, ?, ?)",
+            (
+                (
+                    row["concept_id"],
+                    row["concept_code"],
+                    row["vocabulary_id"],
+                    row.get("standard_concept") or None,
+                )
+                for row in reader
+            ),
+        )
+    conn.commit()
+    print("Supplemental concepts loaded.", flush=True)
+
+
+def _load_concept_relationship_extra(conn: sqlite3.Connection, csv_path: str) -> None:
+    """Load supplemental 'Maps to' relationships for local source concepts.
+
+    Local source concept IDs are always > 2B, so we clear those rows before
+    inserting to keep repeated startups idempotent.
+    """
+    print(f"Loading supplemental concept relationships from {csv_path} ...", flush=True)
+    conn.execute("DELETE FROM concept_relationship WHERE concept_id_1 > 2000000000")
+    with open(csv_path, newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f, delimiter=CSV_DELIMITER)
+        conn.executemany(
+            "INSERT INTO concept_relationship VALUES (?, ?, ?)",
+            (
+                (row["concept_id_1"], row["concept_id_2"], row["relationship_id"])
+                for row in reader
+            ),
+        )
+    conn.commit()
+    print("Supplemental concept relationships loaded.", flush=True)
+
+
+def _load_vocabulary_extra(conn: sqlite3.Connection, csv_path: str) -> None:
+    """Load supplemental vocabulary definitions for locally-added vocabularies."""
+    print(f"Loading supplemental vocabularies from {csv_path} ...", flush=True)
+    with open(csv_path, newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f, delimiter=CSV_DELIMITER)
+        conn.executemany(
+            "INSERT OR REPLACE INTO vocabulary VALUES (?, ?, ?)",
+            (
+                (row["vocabulary_id"], row["vocabulary_name"], row.get("vocabulary_reference", ""))
+                for row in reader
+            ),
+        )
+    conn.commit()
+    print("Supplemental vocabularies loaded.", flush=True)
+
+
 def init_db(config: dict) -> sqlite3.Connection:
     db_path = config["data"]["sqlite_db"]
     concept_csv = config["data"]["concept_csv"]
     cr_csv = config["data"].get("concept_relationship_csv")
+    extra_csv = config["data"].get("concept_extra_csv")
+    cr_extra_csv = config["data"].get("concept_relationship_extra_csv")
+    vocab_extra_csv = config["data"].get("vocabulary_extra_csv")
 
     Path(db_path).parent.mkdir(parents=True, exist_ok=True)
 
@@ -101,5 +173,14 @@ def init_db(config: dict) -> sqlite3.Connection:
 
     if cr_csv and not _is_loaded(conn, "concept_relationship"):
         _load_concept_relationship(conn, cr_csv)
+
+    if vocab_extra_csv:
+        _load_vocabulary_extra(conn, vocab_extra_csv)
+
+    if extra_csv:
+        _load_concept_extra(conn, extra_csv)
+
+    if cr_extra_csv:
+        _load_concept_relationship_extra(conn, cr_extra_csv)
 
     return conn
