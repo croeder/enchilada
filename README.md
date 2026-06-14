@@ -1,5 +1,7 @@
 # enchilada
 
+**[Documentation](https://croeder.github.io/enchilada/)**
+
 A local FHIR R4 terminology server implementing a subset of the standard FHIR terminology
 API, backed by an on-disk copy of the OMOP vocabularies.
 
