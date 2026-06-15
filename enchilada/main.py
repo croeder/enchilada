@@ -134,3 +134,71 @@ async def conceptmap_translate_post(request: Request):
 )
 async def conceptmap_translate_get(request: Request, system: str, code: str, targetsystem: str):
     return do_translate(request.app.state.conn, system, code, targetsystem)
+
+
+# ---------------------------------------------------------------------------
+# R5 routes — same translate logic, /r5/ prefix, fhirVersion 5.0.0
+# ---------------------------------------------------------------------------
+
+@app.get("/r5/metadata", summary="CapabilityStatement / TerminologyCapabilities (R5)", response_class=JSONResponse)
+async def metadata_r5(mode: str | None = None):
+    if mode == "terminology":
+        return {
+            "resourceType": "TerminologyCapabilities",
+            "status": "active",
+            "date": "2025-05-22",
+            "kind": "instance",
+            "codeSystem": [
+                {"uri": "http://snomed.info/sct"},
+                {"uri": "http://hl7.org/fhir/sid/icd-10-cm"},
+                {"uri": "http://hl7.org/fhir/sid/icd-9-cm"},
+                {"uri": "http://www.nlm.nih.gov/research/umls/rxnorm"},
+                {"uri": "http://loinc.org"},
+            ],
+            "translation": {"needsMap": False},
+        }
+    return {
+        "resourceType": "CapabilityStatement",
+        "status": "active",
+        "date": "2025-05-22",
+        "kind": "instance",
+        "fhirVersion": "5.0.0",
+        "format": ["application/fhir+json", "application/json"],
+        "rest": [
+            {
+                "mode": "server",
+                "resource": [
+                    {
+                        "type": "ConceptMap",
+                        "operation": [
+                            {
+                                "name": "translate",
+                                "definition": "http://hl7.org/fhir/OperationDefinition/ConceptMap-translate",
+                            }
+                        ],
+                    }
+                ],
+            }
+        ],
+    }
+
+
+@app.post("/r5/ConceptMap/$translate", summary="ConceptMap/$translate (R5)", response_class=JSONResponse)
+async def conceptmap_translate_post_r5(request: Request):
+    body = await request.json()
+    params = _extract_params(body)
+    system = params.get("system")
+    code = params.get("code")
+    targetsystem = params.get("targetsystem", "https://athena.ohdsi.org")
+    url = params.get("url")
+    if not system and url:
+        system = url
+    missing = [n for n, v in [("system", system), ("code", code)] if not v]
+    if missing:
+        raise HTTPException(status_code=400, detail=f"Missing required parameter(s): {', '.join(missing)}")
+    return do_translate(request.app.state.conn, system, code, targetsystem)
+
+
+@app.get("/r5/ConceptMap/$translate", summary="ConceptMap/$translate (R5 GET)", response_class=JSONResponse)
+async def conceptmap_translate_get_r5(request: Request, system: str, code: str, targetsystem: str):
+    return do_translate(request.app.state.conn, system, code, targetsystem)

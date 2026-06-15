@@ -203,3 +203,58 @@ def test_metadata_terminology_capabilities(client):
     uris = {cs["uri"] for cs in body["codeSystem"]}
     assert "http://snomed.info/sct" in uris
     assert "http://loinc.org" in uris
+
+
+# ---------------------------------------------------------------------------
+# R5 route tests — same translate logic, different URL prefix and fhirVersion
+# ---------------------------------------------------------------------------
+
+def test_r5_metadata_capability_statement(client):
+    resp = client.get("/r5/metadata")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["resourceType"] == "CapabilityStatement"
+    assert body["fhirVersion"] == "5.0.0"
+
+
+def test_r5_metadata_terminology_capabilities(client):
+    resp = client.get("/r5/metadata", params={"mode": "terminology"})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["resourceType"] == "TerminologyCapabilities"
+    uris = {cs["uri"] for cs in body["codeSystem"]}
+    assert "http://snomed.info/sct" in uris
+    assert "http://loinc.org" in uris
+
+
+def test_r5_http_post_match(client):
+    resp = client.post("/r5/ConceptMap/$translate", json=_parameters_body(SNOMED, "38341003", OMOP))
+    assert resp.status_code == 200
+    assert resp.json()["parameter"][0]["valueBoolean"] is True
+
+
+def test_r5_http_post_no_match(client):
+    resp = client.post("/r5/ConceptMap/$translate", json=_parameters_body(SNOMED, "UNKNOWN", OMOP))
+    assert resp.status_code == 200
+    assert resp.json()["parameter"][0]["valueBoolean"] is False
+
+
+def test_r5_http_get_match(client):
+    resp = client.get("/r5/ConceptMap/$translate", params={"system": SNOMED, "code": "38341003", "targetsystem": OMOP})
+    assert resp.status_code == 200
+    assert resp.json()["parameter"][0]["valueBoolean"] is True
+
+
+def test_r5_http_missing_param(client):
+    resp = client.post("/r5/ConceptMap/$translate", json={"resourceType": "Parameters", "parameter": []})
+    assert resp.status_code == 400
+
+
+def test_WHEN_r5_bare_code_with_known_url_as_system_SHOULD_translate(client):
+    resp = client.post(
+        "/r5/ConceptMap/$translate",
+        json=_bare_code_body("http://snomed.info/sct", "38341003", OMOP),
+    )
+    assert resp.status_code == 200
+    assert resp.json()["parameter"][0]["valueBoolean"] is True
+    assert resp.json()["parameter"][1]["part"][1]["valueCoding"]["code"] == "316866"
