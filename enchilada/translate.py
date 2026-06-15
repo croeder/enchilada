@@ -19,15 +19,15 @@ def translate(conn: sqlite3.Connection, system: str, code: str, targetsystem: st
     if row:
         return _match(targetsystem, str(row["concept_id"]))
 
-    # Step 2: non-standard code mapped via 'Maps to' relationship
+    # Step 2: non-standard code mapped via 'Maps to' relationship.
+    # The relationship itself is authoritative; we don't require the target to exist
+    # in the local concept table (supplemental concept_ids from Athena may not be present).
     row = conn.execute(
         """
-        SELECT c2.concept_id
+        SELECT cr.concept_id_2 AS concept_id
         FROM concept c1
         JOIN concept_relationship cr ON cr.concept_id_1 = c1.concept_id
                                      AND cr.relationship_id = 'Maps to'
-        JOIN concept c2 ON c2.concept_id = cr.concept_id_2
-                        AND c2.standard_concept = 'S'
         WHERE c1.concept_code = ? AND c1.vocabulary_id = ?
         LIMIT 1
         """,
