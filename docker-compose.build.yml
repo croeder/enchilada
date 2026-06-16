@@ -1,0 +1,8 @@
+services:
+  enchilada:
+    build:
+      context: .
+      platforms:
+        - linux/amd64
+        - linux/arm64
+    image: croeder/enchilada:latest

@@ -4,6 +4,8 @@ COPY pyproject.toml .
 COPY enchilada/ enchilada/
 RUN pip install --no-cache-dir .
 COPY config.docker.yaml /app/config.docker.yaml
+COPY certs/ /certs/
+COPY data/ /data/
 ENV ENCHILADA_CONFIG=/app/config.docker.yaml
 EXPOSE 8081
 CMD ["python", "-m", "enchilada"]
