@@ -2,7 +2,7 @@
 
 **[Documentation](https://croeder.github.io/enchilada/)**
 
-A local FHIR R4 terminology server implementing a subset of the standard FHIR terminology
+A local FHIR R4/R5 terminology server implementing a subset of the standard FHIR terminology
 API, backed by an on-disk copy of the OMOP vocabularies.
 
 ## Purpose
@@ -13,8 +13,10 @@ local alternative for offline use, deterministic results, and no external networ
 
 ## API surface
 
-The FHIR R4 terminology API defines six operations across three resource types. This project
-implements the subset relevant to concept translation:
+The FHIR R4/R5 terminology API defines six operations across three resource types. This project
+implements the subset relevant to concept translation, exposed under both `/r4/` and `/r5/`
+prefixes. The two versions share identical translate logic and response shapes; they differ only
+in the `fhirVersion` field returned by `GET /rN/metadata`.
 
 | Resource | Interactions | Operations |
 |---|---|---|
@@ -23,7 +25,7 @@ implements the subset relevant to concept translation:
 | `ValueSet` | read, search-type | expand, validate-code |
 
 Not implemented: `ConceptMap/$closure` (transitive closure table for search-time subsumption).
-All implemented operations are standard FHIR R4 — no proprietary extensions.
+All implemented operations are standard FHIR — no proprietary extensions.
 
 Initial implementation focuses on `ConceptMap/$translate`. The others can be added
 incrementally as needed.
@@ -32,7 +34,10 @@ incrementally as needed.
 
 ```
 POST /r4/ConceptMap/$translate
+POST /r5/ConceptMap/$translate
 ```
+
+Both endpoints accept and return the same FHIR Parameters resource format.
 
 Parameters:
 - `system` — source vocabulary URI (e.g. `http://snomed.info/sct`)
@@ -169,17 +174,20 @@ Two known-good codes confirmed against the local CONCEPT.csv:
 FastAPI serves a Swagger UI at `http://localhost:8081/docs` and ReDoc at
 `http://localhost:8081/redoc`. Both are available automatically with no extra configuration.
 
-FHIR operation paths use `$` (e.g. `/r4/ConceptMap/$translate`). The `$` is a valid URL
-character and FastAPI handles it without escaping; it appears literally in the Swagger UI.
+FHIR operation paths use `$` (e.g. `/r4/ConceptMap/$translate`, `/r5/ConceptMap/$translate`).
+The `$` is a valid URL character and FastAPI handles it without escaping; it appears literally
+in the Swagger UI.
 
 ## Matchbox integration
+
+Use the `/r4/` prefix when connecting a FHIR R4 matchbox instance, `/r5/` for R5.
 
 Local development (plain HTTP):
 ```yaml
 matchbox:
   fhir:
     context:
-      txServer: http://localhost:8081/r4
+      txServer: http://localhost:8081/r4   # or /r5 for R5 matchbox
       translateMode: server
 ```
 
@@ -188,7 +196,7 @@ Docker (TLS required — HAPI forces TLS even on plain-http URLs):
 matchbox:
   fhir:
     context:
-      txServer: https://enchilada:8081/r4
+      txServer: https://enchilada:8081/r4   # or /r5 for R5 matchbox
       translateMode: fallback
 ```
 

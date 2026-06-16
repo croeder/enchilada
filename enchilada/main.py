@@ -105,7 +105,6 @@ async def metadata(mode: str | None = None):
 )
 async def conceptmap_translate_post(request: Request):
     body = await request.json()
-    import logging; logging.getLogger("enchilada").warning("translate body: %s", body)
     params = _extract_params(body)
 
     system = params.get("system")
