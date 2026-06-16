@@ -5,7 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from enchilada.main import app
-from enchilada.translate import translate
+from enchilada.translate import translate_r4, translate_r5
 
 
 # ---------------------------------------------------------------------------
@@ -71,7 +71,7 @@ OMOP   = "http://ohdsi.org/omop"
 
 
 def test_standard_concept_hypertension(conn):
-    result = translate(conn, SNOMED, "38341003", OMOP)
+    result = translate_r4(conn, SNOMED, "38341003", OMOP)
     assert result["parameter"][0]["valueBoolean"] is True
     concept = result["parameter"][1]["part"][1]["valueCoding"]
     assert concept["code"] == "316866"
@@ -79,25 +79,25 @@ def test_standard_concept_hypertension(conn):
 
 
 def test_standard_concept_fever(conn):
-    result = translate(conn, SNOMED, "386661006", OMOP)
+    result = translate_r4(conn, SNOMED, "386661006", OMOP)
     assert result["parameter"][0]["valueBoolean"] is True
     assert result["parameter"][1]["part"][1]["valueCoding"]["code"] == "437663"
 
 
 def test_maps_to_relationship(conn):
-    result = translate(conn, SNOMED, "NONSTANDARD_CODE", OMOP)
+    result = translate_r4(conn, SNOMED, "NONSTANDARD_CODE", OMOP)
     assert result["parameter"][0]["valueBoolean"] is True
     assert result["parameter"][1]["part"][1]["valueCoding"]["code"] == "316866"
 
 
 def test_no_match(conn):
-    result = translate(conn, SNOMED, "UNKNOWN_CODE", OMOP)
+    result = translate_r4(conn, SNOMED, "UNKNOWN_CODE", OMOP)
     assert result["parameter"][0]["valueBoolean"] is False
     assert "UNKNOWN_CODE" in result["parameter"][1]["valueString"]
 
 
 def test_unknown_system(conn):
-    result = translate(conn, "http://example.com/unknown", "12345", OMOP)
+    result = translate_r4(conn, "http://example.com/unknown", "12345", OMOP)
     assert result["parameter"][0]["valueBoolean"] is False
     assert "Unknown vocabulary" in result["parameter"][1]["valueString"]
 
@@ -206,7 +206,49 @@ def test_metadata_terminology_capabilities(client):
 
 
 # ---------------------------------------------------------------------------
-# R5 route tests — same translate logic, different URL prefix and fhirVersion
+# R4 spec: coding/valueCoding alternative to flat system+code
+# ---------------------------------------------------------------------------
+
+def _r4_coding_body(system: str, code: str, targetsystem: str) -> dict:
+    return {
+        "resourceType": "Parameters",
+        "parameter": [
+            {"name": "coding",       "valueCoding": {"system": system, "code": code}},
+            {"name": "targetsystem", "valueUri":    targetsystem},
+        ],
+    }
+
+
+def test_WHEN_r4_coding_valueCoding_match_SHOULD_translate(client):
+    resp = client.post("/r4/ConceptMap/$translate", json=_r4_coding_body(SNOMED, "38341003", OMOP))
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["parameter"][0]["valueBoolean"] is True
+    match_parts = {p["name"]: p for p in data["parameter"][1]["part"]}
+    assert match_parts["equivalence"]["valueCode"] == "equivalent"
+    assert match_parts["concept"]["valueCoding"]["code"] == "316866"
+
+
+def test_WHEN_r4_coding_valueCoding_no_match_SHOULD_return_false(client):
+    resp = client.post("/r4/ConceptMap/$translate", json=_r4_coding_body(SNOMED, "UNKNOWN", OMOP))
+    assert resp.status_code == 200
+    assert resp.json()["parameter"][0]["valueBoolean"] is False
+
+
+# ---------------------------------------------------------------------------
+# R4 response format: match part must use "equivalence" not "relationship"
+# ---------------------------------------------------------------------------
+
+def test_WHEN_r4_match_SHOULD_use_equivalence_in_response(client):
+    resp = client.post("/r4/ConceptMap/$translate", json=_parameters_body(SNOMED, "38341003", OMOP))
+    assert resp.status_code == 200
+    parts = {p["name"]: p for p in resp.json()["parameter"][1]["part"]}
+    assert "equivalence" in parts
+    assert "relationship" not in parts
+
+
+# ---------------------------------------------------------------------------
+# R5 route tests — correct R5 parameter names and response format
 # ---------------------------------------------------------------------------
 
 def test_r5_metadata_capability_statement(client):
@@ -227,33 +269,94 @@ def test_r5_metadata_terminology_capabilities(client):
     assert "http://loinc.org" in uris
 
 
-def test_r5_http_post_match(client):
-    resp = client.post("/r5/ConceptMap/$translate", json=_parameters_body(SNOMED, "38341003", OMOP))
+def _r5_flat_body(system: str, sourceCode: str, targetSystem: str) -> dict:
+    return {
+        "resourceType": "Parameters",
+        "parameter": [
+            {"name": "system",       "valueUri":  system},
+            {"name": "sourceCode",   "valueCode": sourceCode},
+            {"name": "targetSystem", "valueUri":  targetSystem},
+        ],
+    }
+
+
+def _r5_coding_body(system: str, code: str, targetSystem: str) -> dict:
+    return {
+        "resourceType": "Parameters",
+        "parameter": [
+            {"name": "sourceCoding", "valueCoding": {"system": system, "code": code}},
+            {"name": "targetSystem", "valueUri":    targetSystem},
+        ],
+    }
+
+
+def test_WHEN_r5_sourceCode_targetSystem_match_SHOULD_translate(client):
+    resp = client.post("/r5/ConceptMap/$translate", json=_r5_flat_body(SNOMED, "38341003", OMOP))
     assert resp.status_code == 200
     assert resp.json()["parameter"][0]["valueBoolean"] is True
+    assert resp.json()["parameter"][1]["part"][1]["valueCoding"]["code"] == "316866"
 
 
-def test_r5_http_post_no_match(client):
-    resp = client.post("/r5/ConceptMap/$translate", json=_parameters_body(SNOMED, "UNKNOWN", OMOP))
+def test_WHEN_r5_sourceCode_targetSystem_no_match_SHOULD_return_false(client):
+    resp = client.post("/r5/ConceptMap/$translate", json=_r5_flat_body(SNOMED, "UNKNOWN", OMOP))
     assert resp.status_code == 200
     assert resp.json()["parameter"][0]["valueBoolean"] is False
 
 
-def test_r5_http_get_match(client):
-    resp = client.get("/r5/ConceptMap/$translate", params={"system": SNOMED, "code": "38341003", "targetsystem": OMOP})
-    assert resp.status_code == 200
-    assert resp.json()["parameter"][0]["valueBoolean"] is True
-
-
-def test_r5_http_missing_param(client):
+def test_WHEN_r5_missing_params_SHOULD_return_400(client):
     resp = client.post("/r5/ConceptMap/$translate", json={"resourceType": "Parameters", "parameter": []})
     assert resp.status_code == 400
+
+
+def test_WHEN_r5_sourceCode_without_system_SHOULD_return_400(client):
+    resp = client.post("/r5/ConceptMap/$translate", json={
+        "resourceType": "Parameters",
+        "parameter": [{"name": "sourceCode", "valueCode": "38341003"}],
+    })
+    assert resp.status_code == 400
+
+
+def test_WHEN_r5_sourceCoding_targetSystem_match_SHOULD_translate(client):
+    resp = client.post("/r5/ConceptMap/$translate", json=_r5_coding_body(SNOMED, "38341003", OMOP))
+    assert resp.status_code == 200
+    assert resp.json()["parameter"][0]["valueBoolean"] is True
+    assert resp.json()["parameter"][1]["part"][1]["valueCoding"]["code"] == "316866"
+
+
+def test_WHEN_r5_sourceCoding_targetSystem_no_match_SHOULD_return_false(client):
+    resp = client.post("/r5/ConceptMap/$translate", json=_r5_coding_body(SNOMED, "UNKNOWN", OMOP))
+    assert resp.status_code == 200
+    assert resp.json()["parameter"][0]["valueBoolean"] is False
+
+
+def test_WHEN_r5_match_SHOULD_use_relationship_not_equivalence_in_response(client):
+    resp = client.post("/r5/ConceptMap/$translate", json=_r5_flat_body(SNOMED, "38341003", OMOP))
+    assert resp.status_code == 200
+    parts = {p["name"]: p for p in resp.json()["parameter"][1]["part"]}
+    assert "relationship" in parts
+    assert "equivalence" not in parts
+
+
+def test_WHEN_r5_get_match_SHOULD_use_sourceCode_targetSystem_params(client):
+    resp = client.get(
+        "/r5/ConceptMap/$translate",
+        params={"system": SNOMED, "sourceCode": "38341003", "targetSystem": OMOP},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["parameter"][0]["valueBoolean"] is True
 
 
 def test_WHEN_r5_bare_code_with_known_url_as_system_SHOULD_translate(client):
     resp = client.post(
         "/r5/ConceptMap/$translate",
-        json=_bare_code_body("http://snomed.info/sct", "38341003", OMOP),
+        json={
+            "resourceType": "Parameters",
+            "parameter": [
+                {"name": "url",          "valueUri":  "http://snomed.info/sct"},
+                {"name": "sourceCode",   "valueCode": "38341003"},
+                {"name": "targetSystem", "valueUri":  OMOP},
+            ],
+        },
     )
     assert resp.status_code == 200
     assert resp.json()["parameter"][0]["valueBoolean"] is True
