@@ -1,9 +1,13 @@
 import csv
 import sqlite3
+import sys
 from pathlib import Path
 
 # OMOP Athena exports are tab-separated with a .csv extension
 CSV_DELIMITER = "\t"
+
+# Athena CONCEPT.csv can have description fields > 128 KB (Python's default limit)
+csv.field_size_limit(sys.maxsize)
 
 
 def _setup_schema(conn: sqlite3.Connection) -> None:
