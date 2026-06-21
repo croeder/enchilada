@@ -185,13 +185,13 @@ def init_db(config: dict) -> sqlite3.Connection:
         else:
             print(f"WARNING: {cr_csv} not found — concept relationships unavailable.", flush=True)
 
-    if vocab_extra_csv:
+    if vocab_extra_csv and Path(vocab_extra_csv).is_file():
         _load_vocabulary_extra(conn, vocab_extra_csv)
 
-    if extra_csv:
+    if extra_csv and Path(extra_csv).is_file():
         _load_concept_extra(conn, extra_csv)
 
-    if cr_extra_csv:
+    if cr_extra_csv and Path(cr_extra_csv).is_file():
         _load_concept_relationship_extra(conn, cr_extra_csv)
 
     return conn
