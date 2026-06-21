@@ -173,10 +173,17 @@ def init_db(config: dict) -> sqlite3.Connection:
     conn.commit()
 
     if not _is_loaded(conn, "concept"):
-        _load_concept(conn, concept_csv)
+        if Path(concept_csv).is_file():
+            _load_concept(conn, concept_csv)
+        else:
+            print(f"WARNING: {concept_csv} not found — starting with empty vocabulary. "
+                  "Set CONCEPT_CSV to the path of your Athena CONCEPT.csv.", flush=True)
 
     if cr_csv and not _is_loaded(conn, "concept_relationship"):
-        _load_concept_relationship(conn, cr_csv)
+        if Path(cr_csv).is_file():
+            _load_concept_relationship(conn, cr_csv)
+        else:
+            print(f"WARNING: {cr_csv} not found — concept relationships unavailable.", flush=True)
 
     if vocab_extra_csv:
         _load_vocabulary_extra(conn, vocab_extra_csv)
