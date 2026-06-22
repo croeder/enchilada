@@ -144,14 +144,24 @@ keytool -importcert -file enchilada.crt -keystore enchilada.jks \
 
 For `ConceptMap/$translate` given `(system, code, targetsystem)`:
 
-> **Known matchbox behaviour — system-absent translate requests**
+> **Known matchbox bug — system URI missing from $translate POST body**
 >
 > When an FML `translate()` call uses an empty ConceptMap URL (e.g. `translate(coding, '', 'code')`),
-> the matchbox FML engine strips the system URI from the Coding before building the POST body.
-> The request arrives with only `code` and no `system`. Enchilada handles this by falling back to a
-> cross-vocabulary search across all standard concepts. If the same code string exists in multiple
-> vocabularies the first match wins — unambiguous in practice given the Athena vocabulary set.
-> Echidna (the public hosted server) exhibits the same tolerance.
+> matchbox sends a POST body with only `{"name":"code","valueCode":"..."}` — the `system` parameter
+> is absent. This was observed empirically: the Coding variable `sc` in the FML pattern
+> `src.code.coding first as sc -> tgt.field = translate(sc, '', 'code')` has its system URI stripped
+> before the HTTP request is built. FHIR-compliant servers must return 400 if `system` is absent;
+> echidna (public hosted server) accepts system-absent lookups as a courtesy.
+>
+> Enchilada works around this by falling back to a cross-vocabulary search over all standard concepts
+> when `system` is absent. First match wins — unambiguous in practice given the Athena vocabulary set.
+>
+> **Upstream bug location**: `matchbox-engine/src/main/java/ch/ahdis/matchbox/mappinglanguage/`
+> — either `MatchboxStructureMapUtilities.translate()` (the `getProperty("system",...)` call that
+> reconstructs the Coding from the FML element-model variable) or `ConceptMapEngine.translateViaTxServer()`
+> (the `source.hasSystem()` gate before adding system to the Parameters). Unit tests are in
+> `TranslateCodingSystemTests.java` (class `WhenFmlUsesCodingFirstExtraction`). These tests isolate
+> whether the system is dropped at the FML binding step or at the tx-server request step.
 
 1. Map FHIR vocabulary URI → OMOP `vocabulary_id`:
 
