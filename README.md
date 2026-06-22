@@ -144,6 +144,15 @@ keytool -importcert -file enchilada.crt -keystore enchilada.jks \
 
 For `ConceptMap/$translate` given `(system, code, targetsystem)`:
 
+> **Known matchbox behaviour — system-absent translate requests**
+>
+> When an FML `translate()` call uses an empty ConceptMap URL (e.g. `translate(coding, '', 'code')`),
+> the matchbox FML engine strips the system URI from the Coding before building the POST body.
+> The request arrives with only `code` and no `system`. Enchilada handles this by falling back to a
+> cross-vocabulary search across all standard concepts. If the same code string exists in multiple
+> vocabularies the first match wins — unambiguous in practice given the Athena vocabulary set.
+> Echidna (the public hosted server) exhibits the same tolerance.
+
 1. Map FHIR vocabulary URI → OMOP `vocabulary_id`:
 
 | FHIR URI | OMOP vocabulary_id |

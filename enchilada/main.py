@@ -132,9 +132,8 @@ async def conceptmap_translate_post_r4(request: Request):
     system = params.get("system")
     code = params.get("code")
     targetsystem = params.get("targetsystem", "https://athena.ohdsi.org")
-    missing = [n for n, v in [("system", system), ("code", code)] if not v]
-    if missing:
-        raise HTTPException(status_code=400, detail=f"Missing required parameter(s): {', '.join(missing)}")
+    if not code:
+        raise HTTPException(status_code=400, detail="Missing required parameter: code")
     return translate_r4(request.app.state.conn, system, code, targetsystem)
 
 
@@ -186,9 +185,8 @@ async def conceptmap_translate_post_r5(request: Request):
     system = params.get("system")
     sourceCode = params.get("sourceCode")
     targetSystem = params.get("targetSystem", "https://athena.ohdsi.org")
-    missing = [n for n, v in [("system", system), ("sourceCode", sourceCode)] if not v]
-    if missing:
-        raise HTTPException(status_code=400, detail=f"Missing required parameter(s): {', '.join(missing)}")
+    if not sourceCode:
+        raise HTTPException(status_code=400, detail="Missing required parameter: sourceCode")
     return translate_r5(request.app.state.conn, system, sourceCode, targetSystem)
 
 
