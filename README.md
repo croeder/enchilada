@@ -5,7 +5,8 @@
 
 A minimal, local FHIR R4/R5 terminology server implementing a subset of the standard FHIR terminology
 API, backed by an on-disk copy of the OMOP vocabularies. This implementation does not deal with 
-rate limits, licenses or production-level volume. It is meant for local development or demonstration and 
+rate limits, licenses or production-level volume. _It does not ship with any terminologies_. They need
+to be downloaded by prospective users.  It is meant for local development or demonstration and 
 adherence to the FHIR standards.
 
 ## Purpose
