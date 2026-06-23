@@ -231,3 +231,11 @@ JAVA_TOOL_OPTIONS=-Djavax.net.ssl.trustStore=/certs/enchilada.jks -Djavax.net.ss
 - Full OMOP vocabulary coverage beyond what's in the Athena download
 - Authentication
 - Write operations
+
+## License
+
+Licensed under the [Apache License 2.0](./LICENSE). Copyright 2026 Christophe Roeder.
+
+enchilada serves OMOP vocabulary content loaded from Athena. Individual vocabularies carry their own license terms — see [NOTICES.md](https://github.com/croeder-fhir-to-omop/.github/blob/main/profile/NOTICES.md) for details.
+
+See the [organization README](https://github.com/croeder-fhir-to-omop) for full pipeline documentation.
