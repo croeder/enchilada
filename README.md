@@ -1,4 +1,5 @@
 # enchilada
+![Enchilada](enchilada-logo-card.png)
 
 **[Documentation](https://croeder.github.io/enchilada/)**
 
