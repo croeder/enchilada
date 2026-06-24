@@ -82,21 +82,11 @@ here it is always populated on no-match to aid debugging.
 
 ## Data source
 
-### CONCEPT.csv (available locally)
+Both `CONCEPT.csv` and `CONCEPT_RELATIONSHIP.csv` must be downloaded from [Athena](https://athena.ohdsi.org).
+Select these vocabulary bundles: **SNOMED, ICD10CM, ICD9CM, RxNorm, LOINC, CVX, UCUM, Race**.
 
-`/Users/croeder/git/CCDA/tislab-clad/CCDA_OMOP_Private/CONCEPT.csv`
-
-- 7.4M rows, 965 MB
-- Columns: `concept_id`, `concept_name`, `domain_id`, `vocabulary_id`, `concept_class_id`,
-  `standard_concept`, `concept_code`, `valid_start_date`, `valid_end_date`, `invalid_reason`
-- Standard concepts marked `standard_concept = 'S'`
-- Confirmed: SNOMED 38341003 (hypertensive disorder) → concept_id 316866 present
-
-### CONCEPT_RELATIONSHIP.csv (needs Athena download)
-
-Not present locally. Required to translate non-standard source codes via the `Maps to`
-relationship. Download from [Athena](https://athena.ohdsi.org) — select vocabularies
-SNOMED, ICD10CM, ICD9CM, RxNorm, LOINC at minimum.
+`CONCEPT_RELATIONSHIP.csv` is required for translating non-standard source codes via the
+`Maps to` relationship.
 
 ## Technology
 
@@ -106,7 +96,6 @@ SNOMED, ICD10CM, ICD9CM, RxNorm, LOINC at minimum.
   a better fit than DuckDB (which is optimized for analytical scans, not single-row
   lookups over 7M rows). The CSV is loaded into a SQLite file once on first run;
   subsequent server starts reuse the existing file.
-- **Reference**: `/Users/croeder/git/omop_on_duckdb/` — existing OMOP CSV loading patterns
 
 ## Configuration
 
@@ -117,8 +106,8 @@ server:
   port: 8081
 
 data:
-  concept_csv: /Users/croeder/git/CCDA/tislab-clad/CCDA_OMOP_Private/CONCEPT.csv
-  concept_relationship_csv: null   # set path when available
+  concept_csv: /data/CONCEPT.csv
+  concept_relationship_csv: /data/CONCEPT_RELATIONSHIP.csv
   sqlite_db: ./enchilada.db        # created on first run, reused thereafter
 ```
 
@@ -174,6 +163,7 @@ For `ConceptMap/$translate` given `(system, code, targetsystem)`:
 | `http://hl7.org/fhir/sid/icd-9-cm` | `ICD9CM` |
 | `http://www.nlm.nih.gov/research/umls/rxnorm` | `RxNorm` |
 | `http://loinc.org` | `LOINC` |
+| `http://hl7.org/fhir/sid/cvx` | `CVX` |
 
 2. Query SQLite `CONCEPT` for `concept_code = code` AND `vocabulary_id = <mapped>` AND
    `standard_concept = 'S'` → return `concept_id` directly.
@@ -182,15 +172,6 @@ For `ConceptMap/$translate` given `(system, code, targetsystem)`:
    `relationship_id = 'Maps to'` to find the standard concept (requires Athena download).
 
 4. If still not found, return `result=false` with a descriptive `message`.
-
-## Test cases
-
-Two known-good codes confirmed against the local CONCEPT.csv:
-
-| Input system | code | Expected concept_id |
-|---|---|---|
-| `http://snomed.info/sct` | `38341003` (hypertensive disorder) | `316866` |
-| `http://snomed.info/sct` | `386661006` (fever) | `437663` |
 
 ## Development
 
@@ -227,6 +208,33 @@ Mount the Java truststore into matchbox and set:
 ```
 JAVA_TOOL_OPTIONS=-Djavax.net.ssl.trustStore=/certs/enchilada.jks -Djavax.net.ssl.trustStorePassword=changeit
 ```
+
+## Running as a Docker container
+
+The published image is `croeder/enchilada:latest`. In normal use it runs as part of the
+compose stack in `dqd_docker` — no standalone setup is needed. The compose file mounts
+the vocabulary files and a persistent SQLite volume:
+
+```yaml
+enchilada:
+  image: croeder/enchilada:latest
+  ports:
+    - "8081:8081"
+  volumes:
+    - enchilada-db:/db
+    - ${CONCEPT_CSV:-./CONCEPT.csv}:/data/CONCEPT.csv:ro
+    - ${CONCEPT_RELATIONSHIP_CSV:-./CONCEPT_RELATIONSHIP.csv}:/data/CONCEPT_RELATIONSHIP.csv:ro
+```
+
+Place `CONCEPT.csv` and `CONCEPT_RELATIONSHIP.csv` in your working directory before starting
+(or set `CONCEPT_CSV` and `CONCEPT_RELATIONSHIP_CSV` environment variables to their paths).
+The SQLite database is built from the CSVs on first run (~1–2 min) and cached in the
+`enchilada-db` volume for subsequent starts.
+
+enchilada serves over HTTPS with a self-signed certificate. The matchbox image includes a
+combined JKS truststore that covers enchilada's cert, so no manual certificate setup is
+required. See the [organization README](https://github.com/croeder-fhir-to-omop) for full
+compose usage instructions.
 
 ## Out of scope
 
